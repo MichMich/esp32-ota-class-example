@@ -1,9 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 
-enum OTATarget { OTATargetFirmware, OTATargetSpiffs };
-
-typedef std::function<void(u_int8_t progress, OTATarget target)> ProgressCallback;
+typedef std::function<void(u_int8_t progress)> ProgressCallback;
 
 class OTAManager {
   public:
@@ -21,5 +19,5 @@ class OTAManager {
 	void onProgress(unsigned int progress, unsigned int total);
 	void onEnd();
 	void onError(ota_error_t error);
-	bool httpUpdate(OTATarget target, const char *url);
+	bool httpUpdate(const char *url);
 };

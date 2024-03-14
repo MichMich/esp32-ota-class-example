@@ -1,9 +1,9 @@
 #include "OTAManager.h"
 #include "HTTPClient.h"
-#include "SPIFFS.h"
 #include "esp_log.h"
 
 static const char *TAG = "OTAManager";
+
 /**
  * @brief Construct a new OTAManager::OTAManager object
  */
@@ -48,7 +48,7 @@ void OTAManager::startUpdate() {
 
 	_lastPercentage = 0;
 
-	if (httpUpdate(OTATargetFirmware, _url)) {
+	if (httpUpdate(_url)) {
 		ESP_LOGI(TAG, "Ota done!");
 		delay(1000);
 		ESP.restart();
@@ -59,7 +59,6 @@ void OTAManager::startUpdate() {
  * @brief On start of the update
  */
 void OTAManager::onStart() {
-	_lastOtaCommand = ArduinoOTA.getCommand();
 }
 
 /**
@@ -69,14 +68,13 @@ void OTAManager::onStart() {
  * @param total the total
  */
 void OTAManager::onProgress(unsigned int progress, unsigned int total) {
-	float percent = progress / (total / 100);
-	OTATarget target = _lastOtaCommand == U_FLASH ? OTATargetFirmware : OTATargetSpiffs;
+	float percent = progress / (total / 100.0);
 
 	if ((u_int8_t)percent > _lastPercentage) {
 		_lastPercentage = percent;
-		ESP_LOGD(TAG, "Progress: %d%\n", percent);
+		ESP_LOGD(TAG, "Progress: %d%\n", (int)percent);
 
-		if (_progressCallback) _progressCallback(percent, target);
+		if (_progressCallback) _progressCallback((int)percent);
 	}
 }
 
@@ -99,12 +97,11 @@ void OTAManager::onError(ota_error_t error) {
 /**
  * @brief Update the firmware via http
  *
- * @param target the target
  * @param url the url
  * @return true if the update was successful
  * @return false if the update was not successful
  */
-bool OTAManager::httpUpdate(OTATarget target, const char *url) {
+bool OTAManager::httpUpdate(const char *url) {
 	HTTPClient httpClient;
 	httpClient.useHTTP10(true);
 	httpClient.setTimeout(5000);
@@ -118,9 +115,7 @@ bool OTAManager::httpUpdate(OTATarget target, const char *url) {
 	}
 	int httpSize = httpClient.getSize();
 
-	SPIFFS.end();
-
-	if (!Update.begin(httpSize, target == OTATargetSpiffs ? U_SPIFFS : U_FLASH)) {
+	if (!Update.begin(httpSize, U_FLASH)) {
 		ESP_LOGE(TAG, "ERROR: %s\n", httpClient.errorToString(httpClient.GET()));
 		return false;
 	}
@@ -136,12 +131,11 @@ bool OTAManager::httpUpdate(OTATarget target, const char *url) {
 			Update.write(buff, c);
 			if (httpSize > 0) httpSize -= c;
 		}
-
 		int percent = int(Update.progress() * 100 / httpClient.getSize());
 		if (percent > _lastPercentage) {
 			_lastPercentage = percent;
 			ESP_LOGI(TAG, "Progress: %d%\n", percent);
-			if (_progressCallback) _progressCallback(percent, target);
+			if (_progressCallback) _progressCallback(percent);
 		}
 	}
 	if (!Update.end()) {
